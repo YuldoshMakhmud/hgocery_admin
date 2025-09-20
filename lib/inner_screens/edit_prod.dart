@@ -1,5 +1,6 @@
 import 'dart:developer';
 import 'dart:io';
+// ignore: unnecessary_import
 import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
@@ -170,7 +171,7 @@ class _EditProductScreenState extends State<EditProductScreen> {
                                           MainAxisAlignment.start,
                                       children: [
                                         TextWidget(
-                                          text: 'Price in \$*',
+                                          text: 'Price in \￦*',
                                           color: color,
                                           isTitle: true,
                                         ),
@@ -179,7 +180,7 @@ class _EditProductScreenState extends State<EditProductScreen> {
                                           width: 100,
                                           child: TextFormField(
                                             controller: _priceController,
-                                            key: const ValueKey('Price \$'),
+                                            key: const ValueKey('Price \￦'),
                                             keyboardType: TextInputType.number,
                                             validator: (value) {
                                               if (value!.isEmpty) {

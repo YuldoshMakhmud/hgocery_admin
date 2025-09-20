@@ -290,7 +290,7 @@ class _UploadProductFormState extends State<UploadProductForm> {
                                         CrossAxisAlignment.start,
                                     children: [
                                       TextWidget(
-                                        text: 'Price in \$*',
+                                        text: 'Price in \￦*',
                                         color: color,
                                         isTitle: true,
                                       ),
