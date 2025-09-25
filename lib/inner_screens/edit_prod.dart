@@ -3,9 +3,12 @@ import 'dart:io';
 // ignore: unnecessary_import
 import 'dart:typed_data';
 
+import 'package:cloud_firestore/cloud_firestore.dart' show FirebaseFirestore;
+import 'package:firebase_storage/firebase_storage.dart' as firebase_storage;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart' hide MenuController;
 import 'package:flutter/services.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 import 'package:hgocery_web/Screens/loading_manager.dart';
 import 'package:hgocery_web/controllers/MenuController.dart';
 import 'package:hgocery_web/services/global_method.dart';
@@ -90,6 +93,83 @@ class _EditProductScreenState extends State<EditProductScreen> {
     _priceController.dispose();
     _titleController.dispose();
     super.dispose();
+  }
+
+  void _updateProduct() async {
+    final isValid = _formKey.currentState!.validate();
+    FocusScope.of(context).unfocus();
+
+    if (isValid) {
+      _formKey.currentState!.save();
+
+      try {
+        Uri? imageUri;
+        setState(() {
+          _isLoading = true;
+        });
+
+        if (_pickedImage != null) {
+          firebase_storage.Reference storageRef = firebase_storage
+              .FirebaseStorage
+              .instance
+              .ref()
+              .child('productsImages')
+              .child('${widget.id}.jpg');
+
+          firebase_storage.UploadTask uploadTask;
+
+          if (kIsWeb) {
+            // webImage → Uint8List bo‘lishi kerak
+            uploadTask = storageRef.putData(webImage);
+          } else {
+            // _pickedImage → File bo‘lishi kerak
+            uploadTask = storageRef.putFile(_pickedImage!);
+          }
+
+          final snapshot = await uploadTask;
+          imageUri = Uri.parse(await snapshot.ref.getDownloadURL());
+        }
+
+        await FirebaseFirestore.instance
+            .collection('products')
+            .doc(widget.id)
+            .update({
+              'title': _titleController.text,
+              'price': _priceController.text,
+              'salePrice': _salePrice,
+              'imageUrl': _pickedImage == null
+                  ? widget.imageUrl
+                  : imageUri.toString(),
+              'productCategoryName': _catValue,
+              'isOnSale': _isOnSale,
+              'isPiece': _isPiece,
+            });
+
+        await Fluttertoast.showToast(
+          msg: "Product has been updated",
+          toastLength: Toast.LENGTH_LONG,
+          gravity: ToastGravity.CENTER,
+          timeInSecForIosWeb: 1,
+        );
+      } on firebase_storage.FirebaseException catch (error) {
+        GlobalMethods.errorDialog(
+          subtitle: '${error.message}',
+          context: context,
+        );
+        setState(() {
+          _isLoading = false;
+        });
+      } catch (error) {
+        GlobalMethods.errorDialog(subtitle: '$error', context: context);
+        setState(() {
+          _isLoading = false;
+        });
+      } finally {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   @override

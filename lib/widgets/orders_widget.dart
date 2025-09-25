@@ -43,7 +43,7 @@ class _OrdersWidgetState extends State<OrdersWidget> {
       padding: const EdgeInsets.all(8.0),
       child: Material(
         borderRadius: BorderRadius.circular(8.0),
-        color: Theme.of(context).cardColor.withOpacity(0.4),
+        color: Theme.of(context).cardColor,
         child: Padding(
           padding: const EdgeInsets.all(0.0),
           child: Row(
