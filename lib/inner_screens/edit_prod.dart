@@ -95,6 +95,7 @@ class _EditProductScreenState extends State<EditProductScreen> {
     super.dispose();
   }
 
+  // ignore: unused_element
   void _updateProduct() async {
     final isValid = _formKey.currentState!.validate();
     FocusScope.of(context).unfocus();

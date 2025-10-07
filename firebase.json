@@ -1,1 +1,39 @@
-{"flutter":{"platforms":{"android":{"default":{"projectId":"hgoceryapp","appId":"1:355216699206:android:a494e6eae8005d75e47f47","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"hgoceryapp","configurations":{"android":"1:355216699206:android:a494e6eae8005d75e47f47","ios":"1:355216699206:ios:7a4621d0c0c7abcfe47f47","macos":"1:355216699206:ios:7a4621d0c0c7abcfe47f47","web":"1:355216699206:web:acbd0b48ed8ffb96e47f47","windows":"1:355216699206:web:d1856b1057d0ce11e47f47"}}}}}}
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "hgoceryapp",
+          "appId": "1:355216699206:android:a494e6eae8005d75e47f47",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "hgoceryapp",
+          "configurations": {
+            "android": "1:355216699206:android:a494e6eae8005d75e47f47",
+            "ios": "1:355216699206:ios:7a4621d0c0c7abcfe47f47",
+            "macos": "1:355216699206:ios:7a4621d0c0c7abcfe47f47",
+            "web": "1:355216699206:web:acbd0b48ed8ffb96e47f47",
+            "windows": "1:355216699206:web:d1856b1057d0ce11e47f47"
+          }
+        }
+      }
+    }
+  },
+  "hosting": {
+    "public": "build/web",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  }
+}
