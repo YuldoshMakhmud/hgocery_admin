@@ -1,8 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-// ignore: unused_import
-import 'package:fluttertoast/fluttertoast.dart';
-
+import 'package:intl/intl.dart'; // 🧩 Yangi import
 import '../inner_screens/edit_prod.dart';
 import '../services/global_method.dart';
 import '../services/utils.dart';
@@ -11,6 +9,7 @@ import 'text_widget.dart';
 class ProductWidget extends StatefulWidget {
   const ProductWidget({Key? key, required this.id}) : super(key: key);
   final String id;
+
   @override
   _ProductWidgetState createState() => _ProductWidgetState();
 }
@@ -19,7 +18,7 @@ class _ProductWidgetState extends State<ProductWidget> {
   String title = '';
   String productCat = '';
   String? imageUrl;
-  String price = '0.0';
+  double price = 0.0;
   double salePrice = 0.0;
   bool isOnSale = false;
   bool isPiece = false;
@@ -36,30 +35,31 @@ class _ProductWidgetState extends State<ProductWidget> {
           .collection('products')
           .doc(widget.id)
           .get();
-      // ignore: unnecessary_null_comparison
-      if (productsDoc == null) {
-        return;
-      } else {
-        setState(() {
-          title = productsDoc.get('title');
-          productCat = productsDoc.get('productCategoryName');
-          imageUrl = productsDoc.get('imageUrl');
-          price = productsDoc.get('price');
-          salePrice = productsDoc.get('salePrice');
-          isOnSale = productsDoc.get('isOnSale');
-          isPiece = productsDoc.get('isPiece');
-        });
-      }
+
+      if (!productsDoc.exists) return;
+
+      setState(() {
+        title = productsDoc.get('title');
+        productCat = productsDoc.get('productCategoryName');
+        imageUrl = productsDoc.get('imageUrl');
+        price = (productsDoc.get('price') ?? 0.0).toDouble();
+        salePrice = (productsDoc.get('salePrice') ?? 0.0).toDouble();
+        isOnSale = productsDoc.get('isOnSale');
+        isPiece = productsDoc.get('isPiece');
+      });
     } catch (error) {
       GlobalMethods.errorDialog(subtitle: '$error', context: context);
-    } finally {}
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     Size size = Utils(context).getScreenSize;
-
     final color = Utils(context).color;
+
+    // 🔹 Butun raqam va minglik format
+    final formatCurrency = NumberFormat('#,##0', 'en_US');
+
     return Padding(
       padding: const EdgeInsets.all(8.0),
       child: Material(
@@ -73,12 +73,12 @@ class _ProductWidgetState extends State<ProductWidget> {
                 builder: (context) => EditProductScreen(
                   id: widget.id,
                   title: title,
-                  price: price,
+                  price: price.toString(),
                   salePrice: salePrice,
                   productCat: productCat,
-                  imageUrl: imageUrl == null
-                      ? 'https://www.lifepng.com/wp-content/uploads/2020/11/Apricot-Large-Single-png-hd.png'
-                      : imageUrl!,
+                  imageUrl:
+                      imageUrl ??
+                      'https://www.lifepng.com/wp-content/uploads/2020/11/Apricot-Large-Single-png-hd.png',
                   isOnSale: isOnSale,
                   isPiece: isPiece,
                 ),
@@ -88,51 +88,43 @@ class _ProductWidgetState extends State<ProductWidget> {
           child: Padding(
             padding: const EdgeInsets.all(8.0),
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.start,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Flexible(
                       flex: 3,
                       child: Image.network(
-                        imageUrl == null
-                            ? 'https://www.lifepng.com/wp-content/uploads/2020/11/Apricot-Large-Single-png-hd.png'
-                            : imageUrl!,
+                        imageUrl ??
+                            'https://www.lifepng.com/wp-content/uploads/2020/11/Apricot-Large-Single-png-hd.png',
                         fit: BoxFit.fill,
-                        // width: screenWidth * 0.12,
                         height: size.width * 0.12,
                       ),
                     ),
                     const Spacer(),
                     PopupMenuButton(
                       itemBuilder: (context) => [
-                        PopupMenuItem(
-                          onTap: () {},
-                          child: const Text('Edit'),
-                          value: 1,
-                        ),
-                        PopupMenuItem(
-                          onTap: () {},
-                          child: const Text(
+                        const PopupMenuItem(value: 1, child: Text('Edit')),
+                        const PopupMenuItem(
+                          value: 2,
+                          child: Text(
                             'Delete',
                             style: TextStyle(color: Colors.red),
                           ),
-                          value: 2,
                         ),
                       ],
                     ),
                   ],
                 ),
                 const SizedBox(height: 2),
+
+                // 🧮 Narxlar qismi
                 Row(
                   children: [
                     TextWidget(
                       text: isOnSale
-                          ? '\￦${salePrice.toStringAsFixed(2)}'
-                          : '\￦$price',
+                          ? '₩${formatCurrency.format(salePrice)}'
+                          : '₩${formatCurrency.format(price)}',
                       color: color,
                       textSize: 18,
                     ),
@@ -140,7 +132,7 @@ class _ProductWidgetState extends State<ProductWidget> {
                     Visibility(
                       visible: isOnSale,
                       child: Text(
-                        '\￦$price',
+                        '₩${formatCurrency.format(price)}',
                         style: TextStyle(
                           decoration: TextDecoration.lineThrough,
                           color: color,
@@ -156,6 +148,7 @@ class _ProductWidgetState extends State<ProductWidget> {
                   ],
                 ),
                 const SizedBox(height: 2),
+
                 TextWidget(
                   text: title,
                   color: color,
