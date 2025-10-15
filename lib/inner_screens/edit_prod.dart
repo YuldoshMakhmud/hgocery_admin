@@ -1,9 +1,8 @@
 import 'dart:developer';
 import 'dart:io';
-// ignore: unnecessary_import
 import 'dart:typed_data';
 
-import 'package:cloud_firestore/cloud_firestore.dart' show FirebaseFirestore;
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart' as firebase_storage;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart' hide MenuController;
@@ -38,156 +37,167 @@ class EditProductScreen extends StatefulWidget {
   final String id, title, price, productCat, imageUrl;
   final bool isPiece, isOnSale;
   final double salePrice;
+
   @override
   _EditProductScreenState createState() => _EditProductScreenState();
 }
 
 class _EditProductScreenState extends State<EditProductScreen> {
   final _formKey = GlobalKey<FormState>();
-  // Title and price controllers
+
   late final TextEditingController _titleController, _priceController;
-  // Category
   late String _catValue;
-  // Sale
   String? _salePercent;
   late String percToShow;
   late double _salePrice;
   late bool _isOnSale;
-  // Image
   File? _pickedImage;
   Uint8List webImage = Uint8List(10);
   late String _imageUrl;
-  // kg or Piece,
   late int val;
   late bool _isPiece;
-  // while loading
   bool _isLoading = false;
+
   @override
   void initState() {
-    // set the price and title initial values and initialize the controllers
     _priceController = TextEditingController(text: widget.price);
     _titleController = TextEditingController(text: widget.title);
-    // Set the variables
     _salePrice = widget.salePrice;
     _catValue = widget.productCat;
     _isOnSale = widget.isOnSale;
     _isPiece = widget.isPiece;
     val = _isPiece ? 2 : 1;
     _imageUrl = widget.imageUrl;
-    // Calculate the percentage
+
     percToShow =
-        (100 -
-                (_salePrice * 100) /
-                    double.parse(
-                      widget.price,
-                    )) // WIll be the price instead of 1.88
+        (100 - (_salePrice * 100) / double.parse(widget.price))
             .round()
-            .toStringAsFixed(1) +
+            .toString() +
         '%';
     super.initState();
   }
 
   @override
   void dispose() {
-    // Dispose the controllers
     _priceController.dispose();
     _titleController.dispose();
     super.dispose();
   }
 
-  // ignore: unused_element
-  void _updateProduct() async {
+  Future<void> _updateProduct() async {
     final isValid = _formKey.currentState!.validate();
     FocusScope.of(context).unfocus();
 
-    if (isValid) {
-      _formKey.currentState!.save();
+    if (!isValid) return;
 
-      try {
-        Uri? imageUri;
-        setState(() {
-          _isLoading = true;
-        });
+    try {
+      setState(() => _isLoading = true);
+      Uri? imageUri;
 
-        if (_pickedImage != null) {
-          firebase_storage.Reference storageRef = firebase_storage
-              .FirebaseStorage
-              .instance
+      // Agar rasm yangilansa — yangisini upload qilamiz
+      if (_pickedImage != null) {
+        final ref = firebase_storage.FirebaseStorage.instance
+            .ref()
+            .child('productsImages')
+            .child('${widget.id}.jpg');
+
+        firebase_storage.UploadTask uploadTask;
+        if (kIsWeb) {
+          uploadTask = ref.putData(webImage);
+        } else {
+          uploadTask = ref.putFile(_pickedImage!);
+        }
+
+        final snapshot = await uploadTask.whenComplete(() {});
+        imageUri = Uri.parse(await snapshot.ref.getDownloadURL());
+      }
+
+      final double parsedPrice =
+          double.tryParse(_priceController.text.trim()) ?? 0.0;
+      final double updatedSalePrice = _isOnSale ? _salePrice : 0.0;
+
+      await FirebaseFirestore.instance
+          .collection('products')
+          .doc(widget.id)
+          .update({
+            'title': _titleController.text.trim(),
+            'price': parsedPrice,
+            'salePrice': updatedSalePrice,
+            'imageUrl': _pickedImage == null
+                ? widget.imageUrl
+                : imageUri.toString(),
+            'productCategoryName': _catValue,
+            'isOnSale': _isOnSale,
+            'isPiece': _isPiece,
+          });
+
+      Fluttertoast.showToast(
+        msg: "✅ Product has been updated successfully!",
+        toastLength: Toast.LENGTH_LONG,
+        gravity: ToastGravity.CENTER,
+      );
+    } catch (e) {
+      GlobalMethods.errorDialog(subtitle: e.toString(), context: context);
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _deleteProduct() async {
+    GlobalMethods.warningDialog(
+      title: 'Delete?',
+      subtitle: 'Are you sure you want to delete this product?',
+      fct: () async {
+        Navigator.pop(context);
+        try {
+          setState(() => _isLoading = true);
+
+          // Firestore’dan o‘chir
+          await FirebaseFirestore.instance
+              .collection('products')
+              .doc(widget.id)
+              .delete();
+
+          // Storage’dan rasmni o‘chir
+          final ref = firebase_storage.FirebaseStorage.instance
               .ref()
               .child('productsImages')
               .child('${widget.id}.jpg');
+          await ref.delete();
 
-          firebase_storage.UploadTask uploadTask;
+          Fluttertoast.showToast(
+            msg: "🗑️ Product deleted successfully!",
+            toastLength: Toast.LENGTH_LONG,
+            gravity: ToastGravity.CENTER,
+          );
 
-          if (kIsWeb) {
-            // webImage → Uint8List bo‘lishi kerak
-            uploadTask = storageRef.putData(webImage);
-          } else {
-            // _pickedImage → File bo‘lishi kerak
-            uploadTask = storageRef.putFile(_pickedImage!);
-          }
-
-          final snapshot = await uploadTask;
-          imageUri = Uri.parse(await snapshot.ref.getDownloadURL());
+          Navigator.pop(context); // Edit sahifadan chiqish
+        } catch (e) {
+          GlobalMethods.errorDialog(subtitle: e.toString(), context: context);
+        } finally {
+          setState(() => _isLoading = false);
         }
-
-        await FirebaseFirestore.instance
-            .collection('products')
-            .doc(widget.id)
-            .update({
-              'title': _titleController.text,
-              'price': _priceController.text,
-              'salePrice': _salePrice,
-              'imageUrl': _pickedImage == null
-                  ? widget.imageUrl
-                  : imageUri.toString(),
-              'productCategoryName': _catValue,
-              'isOnSale': _isOnSale,
-              'isPiece': _isPiece,
-            });
-
-        await Fluttertoast.showToast(
-          msg: "Product has been updated",
-          toastLength: Toast.LENGTH_LONG,
-          gravity: ToastGravity.CENTER,
-          timeInSecForIosWeb: 1,
-        );
-      } on firebase_storage.FirebaseException catch (error) {
-        GlobalMethods.errorDialog(
-          subtitle: '${error.message}',
-          context: context,
-        );
-        setState(() {
-          _isLoading = false;
-        });
-      } catch (error) {
-        GlobalMethods.errorDialog(subtitle: '$error', context: context);
-        setState(() {
-          _isLoading = false;
-        });
-      } finally {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    }
+      },
+      context: context,
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Utils(context).getTheme;
-    final color = theme == true ? Colors.white : Colors.black;
-    final _scaffoldColor = Theme.of(context).scaffoldBackgroundColor;
+    final color = theme ? Colors.white : Colors.black;
+    final scaffoldColor = Theme.of(context).scaffoldBackgroundColor;
     Size size = Utils(context).getScreenSize;
 
     var inputDecoration = InputDecoration(
       filled: true,
-      fillColor: _scaffoldColor,
+      fillColor: scaffoldColor,
       border: InputBorder.none,
       focusedBorder: OutlineInputBorder(
         borderSide: BorderSide(color: color, width: 1.0),
       ),
     );
+
     return Scaffold(
       key: context.read<MenuController>().getEditProductscaffoldKey,
       drawer: const SideMenu(),
@@ -203,11 +213,9 @@ class _EditProductScreenState extends State<EditProductScreen> {
                   children: [
                     Header(
                       showTexField: false,
-                      fct: () {
-                        context
-                            .read<MenuController>()
-                            .controlEditProductsMenu();
-                      },
+                      fct: () => context
+                          .read<MenuController>()
+                          .controlEditProductsMenu(),
                       title: 'Edit this product',
                     ),
                     Container(
@@ -219,9 +227,7 @@ class _EditProductScreenState extends State<EditProductScreen> {
                         key: _formKey,
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisAlignment: MainAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: <Widget>[
+                          children: [
                             TextWidget(
                               text: 'Product title*',
                               color: color,
@@ -230,13 +236,9 @@ class _EditProductScreenState extends State<EditProductScreen> {
                             const SizedBox(height: 10),
                             TextFormField(
                               controller: _titleController,
-                              key: const ValueKey('Title'),
-                              validator: (value) {
-                                if (value!.isEmpty) {
-                                  return 'Please enter a Title';
-                                }
-                                return null;
-                              },
+                              validator: (value) => value!.isEmpty
+                                  ? 'Please enter a Title'
+                                  : null,
                               decoration: inputDecoration,
                             ),
                             const SizedBox(height: 20),
@@ -248,11 +250,9 @@ class _EditProductScreenState extends State<EditProductScreen> {
                                     child: Column(
                                       crossAxisAlignment:
                                           CrossAxisAlignment.start,
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.start,
                                       children: [
                                         TextWidget(
-                                          text: 'Price in \￦*',
+                                          text: 'Price*',
                                           color: color,
                                           isTitle: true,
                                         ),
@@ -261,15 +261,11 @@ class _EditProductScreenState extends State<EditProductScreen> {
                                           width: 100,
                                           child: TextFormField(
                                             controller: _priceController,
-                                            key: const ValueKey('Price \￦'),
                                             keyboardType: TextInputType.number,
-                                            validator: (value) {
-                                              if (value!.isEmpty) {
-                                                return 'Price is missed';
-                                              }
-                                              return null;
-                                            },
-                                            inputFormatters: <TextInputFormatter>[
+                                            validator: (value) => value!.isEmpty
+                                                ? 'Enter price'
+                                                : null,
+                                            inputFormatters: [
                                               FilteringTextInputFormatter.allow(
                                                 RegExp(r'[0-9.]'),
                                               ),
@@ -279,19 +275,17 @@ class _EditProductScreenState extends State<EditProductScreen> {
                                         ),
                                         const SizedBox(height: 20),
                                         TextWidget(
-                                          text: 'Porduct category*',
+                                          text: 'Product category*',
                                           color: color,
                                           isTitle: true,
                                         ),
                                         const SizedBox(height: 10),
                                         Container(
-                                          color: _scaffoldColor,
-                                          child: Padding(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 8,
-                                            ),
-                                            child: catDropDownWidget(color),
+                                          color: scaffoldColor,
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 8,
                                           ),
+                                          child: catDropDownWidget(color),
                                         ),
                                         const SizedBox(height: 20),
                                         TextWidget(
@@ -301,8 +295,6 @@ class _EditProductScreenState extends State<EditProductScreen> {
                                         ),
                                         const SizedBox(height: 10),
                                         Row(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.start,
                                           children: [
                                             TextWidget(
                                               text: 'Kg',
@@ -341,34 +333,28 @@ class _EditProductScreenState extends State<EditProductScreen> {
                                           children: [
                                             Checkbox(
                                               value: _isOnSale,
-                                              onChanged: (newValue) {
-                                                setState(() {
-                                                  _isOnSale = newValue!;
-                                                });
-                                              },
+                                              onChanged: (newValue) => setState(
+                                                () => _isOnSale = newValue!,
+                                              ),
                                             ),
-                                            const SizedBox(width: 5),
                                             TextWidget(
-                                              text: 'Sale',
+                                              text: 'On Sale',
                                               color: color,
                                               isTitle: true,
                                             ),
                                           ],
                                         ),
-                                        const SizedBox(height: 5),
                                         AnimatedSwitcher(
-                                          duration: const Duration(seconds: 1),
+                                          duration: const Duration(
+                                            milliseconds: 400,
+                                          ),
                                           child: !_isOnSale
                                               ? Container()
                                               : Row(
                                                   children: [
                                                     TextWidget(
                                                       text:
-                                                          "\$" +
-                                                          _salePrice
-                                                              .toStringAsFixed(
-                                                                2,
-                                                              ),
+                                                          "\$${_salePrice.toStringAsFixed(2)}",
                                                       color: color,
                                                     ),
                                                     const SizedBox(width: 10),
@@ -392,24 +378,23 @@ class _EditProductScreenState extends State<EditProductScreen> {
                                           : size.width * 0.45,
                                       decoration: BoxDecoration(
                                         borderRadius: BorderRadius.circular(12),
-                                        color: Theme.of(
-                                          context,
-                                        ).scaffoldBackgroundColor,
+                                        color: scaffoldColor,
                                       ),
                                       child: ClipRRect(
-                                        borderRadius: const BorderRadius.all(
-                                          Radius.circular(12),
-                                        ),
+                                        borderRadius: BorderRadius.circular(12),
                                         child: _pickedImage == null
-                                            ? Image.network(_imageUrl)
+                                            ? Image.network(
+                                                _imageUrl,
+                                                fit: BoxFit.cover,
+                                              )
                                             : (kIsWeb)
                                             ? Image.memory(
                                                 webImage,
-                                                fit: BoxFit.fill,
+                                                fit: BoxFit.cover,
                                               )
                                             : Image.file(
                                                 _pickedImage!,
-                                                fit: BoxFit.fill,
+                                                fit: BoxFit.cover,
                                               ),
                                       ),
                                     ),
@@ -417,55 +402,33 @@ class _EditProductScreenState extends State<EditProductScreen> {
                                 ),
                                 Expanded(
                                   flex: 1,
-                                  child: Column(
-                                    children: [
-                                      FittedBox(
-                                        child: TextButton(
-                                          onPressed: () {
-                                            _pickImage();
-                                          },
-                                          child: TextWidget(
-                                            text: 'Update image',
-                                            color: Colors.blue,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
+                                  child: TextButton(
+                                    onPressed: _pickImage,
+                                    child: TextWidget(
+                                      text: 'Update image',
+                                      color: Colors.blue,
+                                    ),
                                   ),
                                 ),
                               ],
                             ),
-                            Padding(
-                              padding: const EdgeInsets.all(18.0),
-                              child: Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceAround,
-                                children: [
-                                  ButtonsWidget(
-                                    onPressed: () async {
-                                      GlobalMethods.warningDialog(
-                                        title: 'Delete?',
-                                        subtitle: 'Press okay to confirm',
-                                        fct: () async {
-                                          Navigator.pop(context);
-                                        },
-                                        context: context,
-                                      );
-                                    },
-                                    text: 'Delete',
-                                    icon: IconlyBold.danger,
-                                    backgroundColor: Colors.red.shade700,
-                                  ),
-                                  ButtonsWidget(
-                                    onPressed: () {
-                                      // _uploadForm();
-                                    },
-                                    text: 'Update',
-                                    icon: IconlyBold.setting,
-                                    backgroundColor: Colors.blue,
-                                  ),
-                                ],
-                              ),
+                            const SizedBox(height: 20),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceAround,
+                              children: [
+                                ButtonsWidget(
+                                  onPressed: _deleteProduct,
+                                  text: 'Delete',
+                                  icon: IconlyBold.danger,
+                                  backgroundColor: Colors.red.shade700,
+                                ),
+                                ButtonsWidget(
+                                  onPressed: _updateProduct,
+                                  text: 'Update',
+                                  icon: IconlyBold.setting,
+                                  backgroundColor: Colors.blue,
+                                ),
+                              ],
                             ),
                           ],
                         ),
@@ -486,24 +449,19 @@ class _EditProductScreenState extends State<EditProductScreen> {
       child: DropdownButton<String>(
         style: TextStyle(color: color),
         items: const [
-          DropdownMenuItem<String>(child: Text('10%'), value: '10'),
-          DropdownMenuItem<String>(child: Text('15%'), value: '15'),
-          DropdownMenuItem<String>(child: Text('25%'), value: '25'),
-          DropdownMenuItem<String>(child: Text('50%'), value: '50'),
-          DropdownMenuItem<String>(child: Text('75%'), value: '75'),
-          DropdownMenuItem<String>(child: Text('0%'), value: '0'),
+          DropdownMenuItem(value: '10', child: Text('10%')),
+          DropdownMenuItem(value: '15', child: Text('15%')),
+          DropdownMenuItem(value: '25', child: Text('25%')),
+          DropdownMenuItem(value: '50', child: Text('50%')),
+          DropdownMenuItem(value: '75', child: Text('75%')),
         ],
         onChanged: (value) {
-          if (value == '0') {
-            return;
-          } else {
-            setState(() {
-              _salePercent = value;
-              _salePrice =
-                  double.parse(widget.price) -
-                  (double.parse(value!) * double.parse(widget.price) / 100);
-            });
-          }
+          setState(() {
+            _salePercent = value;
+            _salePrice =
+                double.parse(widget.price) -
+                (double.parse(value!) * double.parse(widget.price) / 100);
+          });
         },
         hint: Text(_salePercent ?? percToShow),
         value: _salePercent,
@@ -516,59 +474,34 @@ class _EditProductScreenState extends State<EditProductScreen> {
       child: DropdownButton<String>(
         style: TextStyle(color: color),
         items: const [
-          DropdownMenuItem<String>(
-            child: Text('Vegetables'),
-            value: 'Vegetables',
-          ),
-          DropdownMenuItem<String>(child: Text('Fruits'), value: 'Fruits'),
-          DropdownMenuItem<String>(child: Text('Grains'), value: 'Grains'),
-          DropdownMenuItem<String>(child: Text('Nuts'), value: 'Nuts'),
-          DropdownMenuItem<String>(child: Text('Herbs'), value: 'Herbs'),
-          DropdownMenuItem<String>(child: Text('Spices'), value: 'Spices'),
+          DropdownMenuItem(value: 'Vegetables', child: Text('Vegetables')),
+          DropdownMenuItem(value: 'Fruits', child: Text('Fruits')),
+          DropdownMenuItem(value: 'Grains', child: Text('Grains')),
+          DropdownMenuItem(value: 'Nuts', child: Text('Nuts')),
+          DropdownMenuItem(value: 'Fish', child: Text('Fish')),
+          DropdownMenuItem(value: 'Savr', child: Text('Savr')),
         ],
-        onChanged: (value) {
-          setState(() {
-            _catValue = value!;
-          });
-        },
-        hint: const Text('Select a Category'),
+        onChanged: (value) => setState(() => _catValue = value!),
         value: _catValue,
       ),
     );
   }
 
   Future<void> _pickImage() async {
-    // MOBILE
     if (!kIsWeb) {
-      final ImagePicker _picker = ImagePicker();
-      XFile? image = await _picker.pickImage(source: ImageSource.gallery);
-
+      final ImagePicker picker = ImagePicker();
+      XFile? image = await picker.pickImage(source: ImageSource.gallery);
+      if (image != null) setState(() => _pickedImage = File(image.path));
+    } else {
+      final ImagePicker picker = ImagePicker();
+      XFile? image = await picker.pickImage(source: ImageSource.gallery);
       if (image != null) {
-        var selected = File(image.path);
-
+        final f = await image.readAsBytes();
         setState(() {
-          _pickedImage = selected;
-        });
-      } else {
-        log('No file selected');
-        // showToast("No file selected");
-      }
-    }
-    // WEB
-    else if (kIsWeb) {
-      final ImagePicker _picker = ImagePicker();
-      XFile? image = await _picker.pickImage(source: ImageSource.gallery);
-      if (image != null) {
-        var f = await image.readAsBytes();
-        setState(() {
-          _pickedImage = File("a");
+          _pickedImage = File("web_image");
           webImage = f;
         });
-      } else {
-        log('No file selected');
       }
-    } else {
-      log('Perm not granted');
     }
   }
 }

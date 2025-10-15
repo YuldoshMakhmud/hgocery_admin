@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart'; // 🧩 Yangi import
+import 'package:intl/intl.dart';
 import '../inner_screens/edit_prod.dart';
 import '../services/global_method.dart';
 import '../services/utils.dart';
@@ -31,24 +31,24 @@ class _ProductWidgetState extends State<ProductWidget> {
 
   Future<void> getProductsData() async {
     try {
-      final DocumentSnapshot productsDoc = await FirebaseFirestore.instance
+      final doc = await FirebaseFirestore.instance
           .collection('products')
           .doc(widget.id)
           .get();
 
-      if (!productsDoc.exists) return;
+      if (!doc.exists) return;
 
       setState(() {
-        title = productsDoc.get('title');
-        productCat = productsDoc.get('productCategoryName');
-        imageUrl = productsDoc.get('imageUrl');
-        price = (productsDoc.get('price') ?? 0.0).toDouble();
-        salePrice = (productsDoc.get('salePrice') ?? 0.0).toDouble();
-        isOnSale = productsDoc.get('isOnSale');
-        isPiece = productsDoc.get('isPiece');
+        title = doc.get('title') ?? '';
+        productCat = doc.get('productCategoryName') ?? '';
+        imageUrl = doc.get('imageUrl');
+        price = double.tryParse(doc.get('price')?.toString() ?? '0') ?? 0.0;
+        salePrice = (doc.get('salePrice') ?? 0.0).toDouble();
+        isOnSale = doc.get('isOnSale') ?? false;
+        isPiece = doc.get('isPiece') ?? false;
       });
-    } catch (error) {
-      GlobalMethods.errorDialog(subtitle: '$error', context: context);
+    } catch (e) {
+      GlobalMethods.errorDialog(subtitle: '$e', context: context);
     }
   }
 
@@ -57,7 +57,6 @@ class _ProductWidgetState extends State<ProductWidget> {
     Size size = Utils(context).getScreenSize;
     final color = Utils(context).color;
 
-    // 🔹 Butun raqam va minglik format
     final formatCurrency = NumberFormat('#,##0', 'en_US');
 
     return Padding(
@@ -70,7 +69,7 @@ class _ProductWidgetState extends State<ProductWidget> {
           onTap: () {
             Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (context) => EditProductScreen(
+                builder: (_) => EditProductScreen(
                   id: widget.id,
                   title: title,
                   price: price.toString(),
@@ -94,16 +93,26 @@ class _ProductWidgetState extends State<ProductWidget> {
                   children: [
                     Flexible(
                       flex: 3,
-                      child: Image.network(
-                        imageUrl ??
-                            'https://www.lifepng.com/wp-content/uploads/2020/11/Apricot-Large-Single-png-hd.png',
-                        fit: BoxFit.fill,
-                        height: size.width * 0.12,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Image.network(
+                          imageUrl ??
+                              'https://www.lifepng.com/wp-content/uploads/2020/11/Apricot-Large-Single-png-hd.png',
+                          fit: BoxFit.cover,
+                          height: size.width * 0.12,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Image.network(
+                              'https://via.placeholder.com/150',
+                              fit: BoxFit.cover,
+                              height: size.width * 0.12,
+                            );
+                          },
+                        ),
                       ),
                     ),
                     const Spacer(),
                     PopupMenuButton(
-                      itemBuilder: (context) => [
+                      itemBuilder: (_) => [
                         const PopupMenuItem(value: 1, child: Text('Edit')),
                         const PopupMenuItem(
                           value: 2,
@@ -113,12 +122,51 @@ class _ProductWidgetState extends State<ProductWidget> {
                           ),
                         ),
                       ],
+                      onSelected: (value) {
+                        if (value == 1) {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => EditProductScreen(
+                                id: widget.id,
+                                title: title,
+                                price: price.toString(),
+                                salePrice: salePrice,
+                                productCat: productCat,
+                                imageUrl:
+                                    imageUrl ??
+                                    'https://www.lifepng.com/wp-content/uploads/2020/11/Apricot-Large-Single-png-hd.png',
+                                isOnSale: isOnSale,
+                                isPiece: isPiece,
+                              ),
+                            ),
+                          );
+                        } else if (value == 2) {
+                          GlobalMethods.warningDialog(
+                            title: 'Delete?',
+                            subtitle:
+                                'Are you sure you want to delete this product?',
+                            context: context,
+                            fct: () async {
+                              Navigator.pop(context);
+                              try {
+                                await FirebaseFirestore.instance
+                                    .collection('products')
+                                    .doc(widget.id)
+                                    .delete();
+                              } catch (e) {
+                                GlobalMethods.errorDialog(
+                                  subtitle: '$e',
+                                  context: context,
+                                );
+                              }
+                            },
+                          );
+                        }
+                      },
                     ),
                   ],
                 ),
                 const SizedBox(height: 2),
-
-                // 🧮 Narxlar qismi
                 Row(
                   children: [
                     TextWidget(
@@ -148,7 +196,6 @@ class _ProductWidgetState extends State<ProductWidget> {
                   ],
                 ),
                 const SizedBox(height: 2),
-
                 TextWidget(
                   text: title,
                   color: color,
